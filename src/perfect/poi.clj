@@ -1,9 +1,9 @@
 (ns perfect.poi
   (:require
    [clojure.java.io :as io]
-   [com.rpl.specter :refer :all]
+   ;[com.rpl.specter :refer :all]
    [clojure.set :as st]
-   [clojure.java.data :as jd]
+   ;[clojure.java.data :as jd]
    [perfect.utils :as utils :reload true]
    [camel-snake-kebab.core :as csk]
    [com.evocomputing.colors :as colors]
@@ -138,26 +138,27 @@
   [^CellStyle cs]
   (enum->key (.getDataFormatString cs)))
 
-(defn get-color
-  [^CellStyle cs]
-  (let [rgb (.getRGB (.getFillForegroundColorColor cs))]
-    (map #(+ % 0xff) rgb)))
+(comment
+  (defn get-color
+    [^CellStyle cs]
+    (let [rgb (.getRGB (.getFillForegroundColorColor cs))]
+      (map #(+ % 0xff) rgb))))
+(comment
+  (defn create-workbook
+    ([]
+     (jd/from-java (XSSFWorkbook.))))
 
-(defn create-workbook
-  ([]
-   (jd/from-java (XSSFWorkbook.))))
-
-(defn read-workbook
-  ([path]
-   (with-open [ef (excel-file path)]
-     (full/from-java (XSSFWorkbook. ef))))
-  ([path method]
-   (with-open [ef (excel-file path)]
-     (let [ms     {:full  full/from-java
-                   :short full/from-java
-                   :fast  full/from-java}
-           method (method ms)]
-       (method (XSSFWorkbook. ef))))))
+  (defn read-workbook
+    ([path]
+     (with-open [ef (excel-file path)]
+       (full/from-java (XSSFWorkbook. ef))))
+    ([path method]
+     (with-open [ef (excel-file path)]
+       (let [ms     {:full  full/from-java
+                     :short full/from-java
+                     :fast  full/from-java}
+             method (method ms)]
+         (method (XSSFWorkbook. ef)))))))
 
 (defn cell?
   [obj-m]
@@ -171,7 +172,7 @@
     (if t
       (= "BLANK" t)
       (empty? (:objs obj)))))
- 
+
 (defn clean-cell
   [wb-map]
   (setval [:objs ALL :objs ALL :objs ALL :objs] NONE wb-map))
@@ -205,7 +206,7 @@
     (println "Short")
     (with-progress-reporting
       (quick-bench
-       (shrt/read-short "prova.xlsx"))))
+       (fast/read-short "resources/multi.xlsx"))))
 
 
   (let [wb    (create-workbook "prova.xlsx")
@@ -227,5 +228,3 @@
       (.write wb o))))
 
 ; TODO it makes sense to reason in a column format for config data and for writing/reading purposes, the only issue is that POI reasons in a row-based format
-
-; TODO provare la libreria di joinr
