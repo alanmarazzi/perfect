@@ -7,12 +7,6 @@
     (clojure.java.io/copy (clojure.java.io/input-stream x) out)
     (.toByteArray out)))
 
-(comment
-  (defn write-dataset-edn! [out-file raw-dataset-map]
-    (with-open [w (clojure.java.io/writer out-file)]
-      (binding [*out* w]
-        (clojure.pprint/write raw-dataset-map)))))
-
 (def data-formats {:general             0
                    :number              1
                    :decimal             2

@@ -1,7 +1,8 @@
-(ns perfect.poi.fast
+(ns perfect.reader.fast
   (:require
-    [perfect.poi.generics :as generics]
-    [net.danielcompton.defn-spec-alpha :as ds])
+   [perfect.poi.generics :as generics]
+   [clojure.spec.alpha :as s]
+   [net.danielcompton.defn-spec-alpha :as ds])
   (:import
     (org.dhatim.fastexcel.reader ReadableWorkbook
                                  Sheet
@@ -14,23 +15,23 @@
   ([^Cell cell] (cell-value cell (.getType cell)))
   ([^Cell cell cell-type]
    (condp = cell-type
-     CellType/EMPTY nil
-     CellType/STRING (.asString cell)
-     CellType/NUMBER (float (.asNumber cell))
+     CellType/EMPTY   nil
+     CellType/STRING  (.asString cell)
+     CellType/NUMBER  (float (.asNumber cell))
      CellType/BOOLEAN (.asBoolean cell)
      CellType/FORMULA {:formula (.getFormula cell)}
-     CellType/ERROR {:error (.getValue cell)}
+     CellType/ERROR   {:error (.getValue cell)}
      :unsupported)))
 
 (defn cell-type
   [cell]
   (condp = cell
-    CellType/EMPTY :blank
-    CellType/STRING :str
-    CellType/NUMBER :numeric
+    CellType/EMPTY   :blank
+    CellType/STRING  :str
+    CellType/NUMBER  :numeric
     CellType/BOOLEAN :bool
     CellType/FORMULA :formula
-    CellType/ERROR :error
+    CellType/ERROR   :error
     :unsupported))
 
 (defn sheets
@@ -53,12 +54,33 @@
   [row]
   (iterator-seq (.iterator row)))
 
-(defprotocol POIMapper
-  (from-java [obj] [obj opt]))
+(defprotocol FastMapper
+  "An Excel workbook is represented as a tree:
 
-(extend-protocol POIMapper
+  Workbook
+  └──Sheet
+     └──Row
+        └──Cell
+           └──5
+
+  The one above is a spreadsheet with one sheet and only one
+  populated cell with the value 5. *Workbooks*, *Sheets* and
+  *Rows* are pure abstractions: if there isn't any *Cell*
+  with some value (even blank is ok) they don't exist.
+
+  `FastMapper` dispatches the right method calls automatically
+  and doesn't require the user to make strictly ordered calls
+  to different functions.
+
+  `from-excel` can be used directly by the user, but most of
+  the time that's not what you want and you can just consider
+  `FastMapper` as a *backend*, this makes possible to improve,
+  change and add functionality without compromising compatibility."
+  (from-excel [obj] [obj opt]))
+
+(extend-protocol FastMapper
   Cell
-  (from-java [^Cell cell]
+  (from-excel [^Cell cell]
     {:type   (cell-type (.getType cell))
      :row-id (inc (.getRow (.getAddress cell)))
      :col-id (inc (.getColumn (.getAddress cell)))
@@ -66,51 +88,52 @@
      :value  (cell-value cell)})
 
   Sheet
-  (from-java [^Sheet sheet]
+  (from-excel [^Sheet sheet]
     {:sheet-name (.getName sheet)
      :sheet-id   (inc (.getIndex sheet))
      :rows       (into []
                        (comp
-                         (map from-java)
+                         (map from-excel)
                          (filter #(not-empty (:cells %))))
                        (rows sheet))
      :level      :sheet})
 
   Row
-  (from-java [^Row row]
+  (from-excel [^Row row]
     {:n-cells    (.getCellCount row)
      :row-number (.getRowNum row)
      :cells      (into []
                        (comp
-                         (map from-java)
+                         (map from-excel)
                          (filter (complement generics/blank?))
                          (keep identity))
                        (cells row))})
 
   ReadableWorkbook
-  (from-java
+  (from-excel
     ([^ReadableWorkbook wb]
-     (let [s (into [] (map from-java) (sheets wb))
+     (let [s (into [] (map from-excel) (sheets wb))
            c (count s)]
        {:sheet-count c
         :sheets      s
         :level       :workbook}))
     ([^ReadableWorkbook wb sheetn]
-     (let [s (into [] (map from-java) (sheets wb))
+     (let [s (into [] (map from-excel) (sheets wb))
            c (count s)]
        {:sheet-count c
-        :sheets      (from-java (sheet wb sheetn))
+        :sheets      (from-excel (sheet wb sheetn))
         :level       :workbook})))
 
   nil
-  (from-java
+  (from-excel
     [obj]
     nil))
 
 (defn read-workbook
+  ""
   ([path]
    (with-open [ef (clojure.java.io/input-stream path)]
-     (from-java (ReadableWorkbook. ef))))
+     (from-excel (ReadableWorkbook. ef))))
   ([path opt]
    (with-open [ef (clojure.java.io/input-stream path)]
-     (from-java (ReadableWorkbook. ef) opt))))
+     (from-excel (ReadableWorkbook. ef) opt))))

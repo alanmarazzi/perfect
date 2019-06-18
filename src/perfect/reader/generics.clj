@@ -1,4 +1,4 @@
-(ns perfect.poi.generics
+(ns perfect.reader.generics
   (:require
    [clojure.spec.alpha :as s]
    [expound.alpha :as expound]
@@ -43,10 +43,6 @@
 (defn cells
   [row]
   (seq row))
-
-(defn values
-  [row]
-  (mapv cell-value (cells row)))
 
 (defn columnar
   [d header?]

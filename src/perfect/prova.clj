@@ -1,17 +1,13 @@
 (ns perfect.prova
   (:require
-    [perfect.poi.full :as full :reload true]
-    [perfect.poi.fast :as fast :reload true]
-    [perfect.poi.generics :as gen :reload true]
+    [perfect.reader.full :as full :reload true]
+    [perfect.reader.fast :as fast :reload true]
+    [perfect.reader.short :as shrt :reload true]
+    [perfect.reader.generics :as generics :reload true]))
 
-    [clojure.spec.alpha :as s]
-    [clojure.spec.gen.alpha :as sgen]
-    [clojure.spec.test.alpha :as stest]
-    [net.danielcompton.defn-spec-alpha :as ds]))
+(def p (generics/columnar (shrt/read-workbook "resources/pipbase.xlsx" 1) true))
 
-(def p (gen/columnar (fast/read-workbook "resources/pipbase.xlsx" 1) true))
-
-(def t (gen/columnar (fast/read-workbook "resources/pipnew.xlsx" 1) true))
+(def t (generics/columnar (shrt/read-workbook "resources/pipnew.xlsx" 1) true))
 
 (defn n-ceduti
   [cols]
@@ -22,100 +18,215 @@
   (count (keep identity (cols "CEDENTI"))))
 
 
-(s/def ::big-even (s/and int? even? #(> % 1000)))
-(s/valid? ::big-even :foo)
-(s/valid? ::big-even 10)
-(s/valid? ::big-even 100000000)
-
-(s/def ::name-or-id (s/or :name string?
-                          :id int?))
-(s/valid? ::name-or-id "abc")
-(s/valid? ::name-or-id 100)
-(s/valid? ::name-or-id :f)
-(s/explain ::name-or-id :f)
-
-(def email-regex #"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,63}$")
-(s/def ::email-type (s/and string? #(re-matches email-regex %)))
-
-(s/def ::acctid int?)
-(s/def ::first-name string?)
-(s/def ::last-name string?)
-(s/def ::email ::email-type)
-(s/def ::phone string?)
-
-(s/def ::person (s/keys :req [::first-name ::last-name ::email]
-                        :opt [::phone]))
-(s/valid? ::person
-          {::first-name "Bugs"
-           ::last-name  "Bunny"
-           ::email      "bugs@example.com"})
-
-(s/def ::ingredient (s/cat :quantity number? :unit keyword?))
-(s/conform ::ingredient [2 :teaspoon])
-(s/explain ::ingredient [11 "peaches"])
-
-(defn person-name
-  [person]
-  {:pre  [(s/valid? ::person person)]
-   :post [(s/valid? string? %)]}
-  (str (::first-name person) " " (::last-name person)))
-
-(defn person-name
-  [person]
-  (let [p (s/assert ::person person)]
-    (str (::first-name p) " " (::last-name p))))
-
-(defn ranged-rand
-  "Returns random int in range start <= rand < end"
-  [start end]
-  (+ start (long (rand (- end start)))))
-
-(s/fdef ranged-rand
-        :args (s/and (s/cat :start int? :end int?)
-                     #(< (:start %) (:end %)))
-        :ret int?
-        :fn (s/and #(>= (:ret %) (-> % :args :start))
-                   #(< (:ret %) (-> % :args :end))))
 
 
-(sgen/sample (s/gen (s/cat :k keyword? :ns (s/+ number?))))
 
 
-(def suit? #{:club :diamond :heart :spade})
-(def rank? (into #{:jack :queen :king :ace} (range 2 11)))
-(def deck (for [suit suit? rank rank?] [rank suit]))
 
-(s/def ::card (s/tuple rank? suit?))
-(s/def ::hand (s/* ::card))
 
-(s/def ::name string?)
-(s/def ::score int?)
-(s/def ::player (s/keys :req [::name ::score ::hand]))
 
-(s/def ::players (s/* ::player))
-(s/def ::deck (s/* ::card))
-(s/def ::game (s/keys :req [::players ::deck]))
 
-(sgen/generate (s/gen ::player))
-(sgen/generate (s/gen ::game))
 
-(s/exercise (s/cat :k keyword? :ns (s/+ number?)) 5)
-(s/exercise-fn `ranged-rand)
 
-(defn divisible-by [n] #(zero? (mod % n)))
-(sgen/sample (s/gen (s/and int?
-                           #(> % 0)
-                           (divisible-by 3))))
 
-(stest/instrument `ranged-rand)
-(stest/check `ranged-rand)
 
-(defn ranged-rand ;; BROKEN!
-  "Returns random int in range start <= rand < end"
-  [start end]
-  (+ start (long (rand (- start end)))))
-(stest/abbrev-result (first (stest/check `ranged-rand)))
 
-(ds/defn adder :- int?
-  [x :- int?]
-  (inc x))
+
+
+
+
+;;;; Further developments
+(comment
+(def ^:dynamic *row-missing-policy* Row$MissingCellPolicy/CREATE_NULL_AS_BLANK)
+
+(def cache (atom {}))
+
+(defn excel-file ^java.io.InputStream
+  [path]
+  (io/input-stream path))
+
+(defprotocol XCell
+  (^Cell create-cell [^Row row col] "Given a row create a cell at the given position")
+  (set-cell [^Cell cell] [x ^Cell cell] [x ^Row row col] "Set the value of a cell"))
+
+(extend-protocol XCell
+  Row
+  (create-cell [^Row row col] (.createCell row (int col)))
+
+  Cell
+  (set-cell [^Cell cell] (.setCellType cell CellType/BLANK))
+
+  String
+  (set-cell
+    ([^String s ^Cell cell] (.setCellValue cell s))
+    ([^String s ^Row row col] (set-cell s (create-cell row col))))
+
+  Number
+  (set-cell
+    ([^Number n ^Cell cell] (.setCellValue cell (double n)))
+    ([^Number n ^Row row col] (set-cell n (create-cell row col))))
+
+  Boolean
+  (set-cell
+    ([^Boolean b ^Cell cell] (.setCellValue cell b))
+    ([^Boolean b ^Row row col] (set-cell b (create-cell row col))))
+
+  Keyword
+  (set-cell
+    ([^Keyword k ^Cell cell] (.setCellValue cell (name k)))
+    ([^Keyword k ^Row row col] (set-cell k (create-cell row col))))
+
+  Date
+  (set-cell
+    ([^Date d ^Cell cell] (.setCellValue cell d))
+    ([^Date d ^Row row col] (set-cell d (create-cell row col))))
+
+  nil
+  (set-cell
+    ([null ^Cell cell] (set-cell cell))
+    ([null ^Row row col] (set-cell (create-cell row col)))))
+
+(defprotocol XRow
+  (^Row create-row [^Sheet sheet row-n] [^Sheet sheet row-n value col]
+    "Create a row in the given sheet at the given position"))
+
+(extend-protocol XRow
+  Sheet
+  (create-row
+    ([^Sheet sheet row-n] (.createRow sheet (int row-n)))
+    ([^Sheet sheet row-n value col]
+     (let [row (create-row sheet row-n)
+           _   (set-cell value row col)]
+       row))))
+
+(defprotocol XSheet
+  (^Sheet create-sheet [^Workbook workbook] [^Workbook workbook ^String sheetname]
+    "Create a new sheet in the given workbook"))
+
+(extend-protocol XSheet
+  Workbook
+  (create-sheet
+    ([^Workbook workbook] (.createSheet workbook))
+    ([^Workbook workbook ^String sheetname]
+     (.createSheet workbook (WorkbookUtil/createSafeSheetName sheetname)))))
+
+(comment (defmethod jd/from-java XSSFCellStyle
+           [^CellStyle cs]
+           (let [data {:h-alignment (h-alignment cs)
+                       :v-alignment (v-alignment cs)
+                       :data-format (cell-format cs)
+                       :wrapped?    (.getWrapText cs)
+                       :background  (.getFillBackgroundColorColor cs)
+                       :foreground  (get-color cs)
+                       :pattern     (.getFillPattern cs)}]
+             data)))
+
+(defn enum->key
+  [enum]
+  (csk/->kebab-case-keyword (str enum)))
+
+(defn h-alignment
+  ([^CellStyle cs]
+   (enum->key (.getAlignment cs)))
+  ([^CellStyle cs style-keyword]
+   (.setAlignment cs
+                  (HorizontalAlignment/forInt
+                   (style-keyword utils/horizontal-alignment)))))
+
+(defn v-alignment
+  [^CellStyle cs]
+  (enum->key (.getVerticalAlignment cs)))
+
+(defn cell-format
+  [^CellStyle cs]
+  (enum->key (.getDataFormatString cs)))
+
+(comment
+  (defn get-color
+    [^CellStyle cs]
+    (let [rgb (.getRGB (.getFillForegroundColorColor cs))]
+      (map #(+ % 0xff) rgb))))
+(comment
+  (defn create-workbook
+    ([]
+     (jd/from-java (XSSFWorkbook.))))
+
+  (defn read-workbook
+    ([path]
+     (with-open [ef (excel-file path)]
+       (full/from-java (XSSFWorkbook. ef))))
+    ([path method]
+     (with-open [ef (excel-file path)]
+       (let [ms     {:full  full/from-java
+                     :short full/from-java
+                     :fast  full/from-java}
+             method (method ms)]
+         (method (XSSFWorkbook. ef)))))))
+
+(defn cell?
+  [obj-m]
+  (if (= :cell (:level obj-m))
+    true
+    false))
+
+(defn blank?
+  [obj]
+  (let [t (:type obj)]
+    (if t
+      (= "BLANK" t)
+      (empty? (:objs obj)))))
+
+(defn clean-cell
+  [wb-map]
+  (setval [:objs ALL :objs ALL :objs ALL :objs] NONE wb-map))
+
+; Styling stuff
+
+(defn style
+  [^Cell cell]
+  (let [stl (.getCellStyle cell)]
+    (jd/from-java stl)))
+
+(defn map-set-cells
+  [row values]
+  (doall (map-indexed #(set-cell %2 row %1) values)))
+
+(defn ordered-vals
+  [header values]
+  ((apply juxt header) values))
+
+(comment
+
+  (do
+    (require '[criterium.core :refer [quick-bench
+                                      bench
+                                      with-progress-reporting]])
+    (println)
+    (println)
+    (println "Full")
+    (with-progress-reporting (quick-bench (read-workbook "resources/prova.xlsx")))
+    (println)
+    (println "Short")
+    (with-progress-reporting
+      (quick-bench
+       (fast/read-short "resources/multi.xlsx"))))
+
+  (let [wb    (create-workbook "prova.xlsx")
+        sheet (first (sheets wb))
+        cls   (cells sheet)]
+    (with-open [o (clojure.java.io/output-stream "prova2.xlsx")]
+      (.write wb o)))
+
+  (let [wb    (create-workbook)
+        sheet (create-sheet wb)
+        row   (create-row sheet 0)
+        cell  (create-cell row 0)
+        stl   (.createCellStyle wb)
+        cl    (.setFillPattern stl FillPatternType/SOLID_FOREGROUND)
+        cl    (.setFillForegroundColor stl (short 15))
+        _     (set-cell 1 cell)
+        cell  (.setCellStyle cell stl)]
+    (with-open [o (clojure.java.io/output-stream "colore.xlsx")]
+      (.write wb o)))))
+
+; TODO it makes sense to reason in a column format for config data and for writing/reading purposes, the only issue is that POI reasons in a row-based format
