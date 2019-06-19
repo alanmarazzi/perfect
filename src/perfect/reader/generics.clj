@@ -29,7 +29,7 @@
   (s/and string? valid-name?)
   "should be an XLSX valid name: https://poi.apache.org/apidocs/4.1/org/apache/poi/ss/util/WorkbookUtil.html#createSafeSheetName-java.lang.String-")
 
-(s/def ::sheet-identity (s/or :idx  ::exspec/pos-int
+(s/def ::sheet-identity (s/or :idx  ::exspec/nat-int
                               :name ::valid-name?))
 
 (defn sheets

@@ -1,6 +1,6 @@
 (ns perfect.reader.fast
   (:require
-   [perfect.poi.generics :as generics]
+   [perfect.reader.generics :as generics]
    [clojure.spec.alpha :as s]
    [net.danielcompton.defn-spec-alpha :as ds])
   (:import
@@ -11,7 +11,7 @@
                                  CellType)))
 
 (defn cell-value
-  "Return proper getter based on cell-value"
+  "Return the value of a cell using the proper method"
   ([^Cell cell] (cell-value cell (.getType cell)))
   ([^Cell cell cell-type]
    (condp = cell-type
@@ -24,6 +24,7 @@
      :unsupported)))
 
 (defn cell-type
+  "From Excel types to keywords"
   [cell]
   (condp = cell
     CellType/EMPTY   :blank
@@ -40,11 +41,11 @@
 
 (ds/defn sheet
   [wb
-   sheet :- ::generics/sheet-identity]
-  (s/assert ::generics/sheet-identity sheet)
+   sheetid :- ::generics/sheet-identity]
+  (s/assert ::generics/sheet-identity sheetid)
   (cond
-    (pos-int? sheet) (.. wb (getSheet sheet) get)
-    (string? sheet)  (.. wb (findSheet sheet) get)))
+    (number? sheet) (.. wb (getSheet sheetid) get)
+    (string? sheet) (.. wb (findSheet sheetid) get)))
 
 (defn rows
   [sheet]
@@ -82,32 +83,30 @@
   Cell
   (from-excel [^Cell cell]
     {:type   (cell-type (.getType cell))
-     :row-id (inc (.getRow (.getAddress cell)))
-     :col-id (inc (.getColumn (.getAddress cell)))
-     :level  :cell
+     :row-id (.getRow (.getAddress cell))
+     :col-id (.getColumn (.getAddress cell))
      :value  (cell-value cell)})
 
   Sheet
   (from-excel [^Sheet sheet]
     {:sheet-name (.getName sheet)
-     :sheet-id   (inc (.getIndex sheet))
+     :sheet-id   (.getIndex sheet)
      :rows       (into []
                        (comp
-                         (map from-excel)
-                         (filter #(not-empty (:cells %))))
-                       (rows sheet))
-     :level      :sheet})
+                        (map from-excel)
+                        (filter #(not-empty (:cells %))))
+                       (rows sheet))})
 
   Row
   (from-excel [^Row row]
-    {:n-cells    (.getCellCount row)
-     :row-number (.getRowNum row)
-     :cells      (into []
-                       (comp
-                         (map from-excel)
-                         (filter (complement generics/blank?))
-                         (keep identity))
-                       (cells row))})
+    {:n-cells (.getCellCount row)
+     :row-id  (dec (.getRowNum row))
+     :cells   (into []
+                    (comp
+                     (map from-excel)
+                     (filter (complement generics/blank?))
+                     (keep identity))
+                    (cells row))})
 
   ReadableWorkbook
   (from-excel
@@ -115,14 +114,12 @@
      (let [s (into [] (map from-excel) (sheets wb))
            c (count s)]
        {:sheet-count c
-        :sheets      s
-        :level       :workbook}))
+        :sheets      s}))
     ([^ReadableWorkbook wb sheetn]
      (let [s (into [] (map from-excel) (sheets wb))
            c (count s)]
        {:sheet-count c
-        :sheets      (from-excel (sheet wb sheetn))
-        :level       :workbook})))
+        :sheets      (from-excel (sheet wb sheetn))})))
 
   nil
   (from-excel

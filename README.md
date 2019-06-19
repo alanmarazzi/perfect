@@ -1,14 +1,19 @@
 # perfect
 
-A Clojure library designed to ... well, that part is up to you.
+Process Excel files with Clojure
 
 ## Usage
 
-FIXME
+Very light API at the moment:
+
+```clojure
+(require '[perfect.reader :refer [read-workbook]])
+(read-workbook "myfile.xlsx" :method :full :sheetid 0)
+```
 
 ## License
 
-Copyright © 2019 FIXME
+Copyright © 2019 Alan Marazzi
 
 This program and the accompanying materials are made available under the
 terms of the Eclipse Public License 2.0 which is available at

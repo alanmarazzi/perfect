@@ -1,4 +1,4 @@
-(ns perfect.reader.short
+(ns perfect.reader.table
   (:import
    (org.dhatim.fastexcel.reader ReadableWorkbook
                                 Sheet
@@ -83,12 +83,12 @@
 
   Row
   (from-excel [^Row row]
-    (mapv from-excel (cells row)))
+    (into [] (map from-excel) (cells row)))
 
   ReadableWorkbook
   (from-excel
     ([^ReadableWorkbook wb]
-     (map from-excel (sheets wb)))
+     (into [] (map from-excel) (sheets wb)))
     ([^ReadableWorkbook wb sheetn]
      (from-excel (sheet wb sheetn)))))
 
