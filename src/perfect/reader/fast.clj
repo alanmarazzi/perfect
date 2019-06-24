@@ -19,7 +19,8 @@
      CellType/STRING  (.asString cell)
      CellType/NUMBER  (float (.asNumber cell))
      CellType/BOOLEAN (.asBoolean cell)
-     CellType/FORMULA {:formula (.getFormula cell)}
+     CellType/FORMULA {:formula (.getFormula cell)
+                       :value (.getValue cell)}
      CellType/ERROR   {:error (.getValue cell)}
      :unsupported)))
 
@@ -67,7 +68,7 @@
   The one above is a spreadsheet with one sheet and only one
   populated cell with the value 5. *Workbooks*, *Sheets* and
   *Rows* are pure abstractions: if there isn't any *Cell*
-  with some value (even blank is ok) they don't exist.
+  with some value (even *blank* is ok) they don't exist.
 
   `FastMapper` dispatches the right method calls automatically
   and doesn't require the user to make strictly ordered calls
