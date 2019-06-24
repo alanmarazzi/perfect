@@ -52,4 +52,4 @@
 
 (defn blank?
   [cell]
-  (= :blank (:type cell)))
+  (identical? :blank (:type cell)))
