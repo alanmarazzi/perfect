@@ -1,6 +1,10 @@
-# perfect
+# perfect 😎
 
 Process Excel files with Clojure
+
+## Disclaimer
+
+This project, though very cool, has unfortunately slipped down in priority because of my work on [panthera](https://github.com/alanmarazzi/panthera). I plan to get back to this ASAP because I actually need this, but if in the meantime you'd like to try it out and contribute ideas (check [this issue](https://github.com/alanmarazzi/perfect/issues/1) to understand some of the angles we're trying to tackle with this), code and so on, please feel free to pop a pull request! :rocket:
 
 ## Usage
 
